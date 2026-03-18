@@ -23,6 +23,9 @@ RUN apt-get update && \\
         inetutils-telnetd \\
         xinetd \\
         procps \\
+        gdb \\
+        binutils \\
+        file \\
     && rm -rf /var/lib/apt/lists/*
 
 COPY xinetd-telnet.conf /etc/xinetd.d/telnet
@@ -30,9 +33,17 @@ COPY xinetd-telnet.conf /etc/xinetd.d/telnet
 RUN useradd -m -s /bin/bash testuser && \\
     echo "testuser:test" | chpasswd
 
+# Disable ASLR inside container for reproducible exploitation
+RUN echo 0 > /proc/sys/kernel/randomize_va_space 2>/dev/null || true
+
+# Enable core dumps for crash analysis
+RUN echo '/tmp/core.%p' > /proc/sys/kernel/core_pattern 2>/dev/null || true
+RUN ulimit -c unlimited 2>/dev/null || true
+
 EXPOSE 23
 
-CMD ["xinetd", "-dontfork", "-stayalive"]
+# Disable ASLR at runtime and start xinetd
+CMD ["sh", "-c", "echo 0 > /proc/sys/kernel/randomize_va_space 2>/dev/null; ulimit -c unlimited; exec xinetd -dontfork -stayalive"]
 """
 
 XINETD_CONF = """\
@@ -112,6 +123,42 @@ def build_and_start():
     return False
 
 
+def recon():
+    """Extract binary info for exploit development."""
+    print("\n[*] Extracting target binary info...")
+
+    recon_cmds = {
+        "ASLR status": "cat /proc/sys/kernel/randomize_va_space",
+        "Binary protections": "readelf -l /usr/sbin/telnetd 2>/dev/null | head -5; file /usr/sbin/telnetd",
+        "GOT entries": "objdump -R /usr/sbin/telnetd 2>/dev/null | head -30",
+        "BSS section": "readelf -S /usr/sbin/telnetd 2>/dev/null | grep -E 'bss|data'",
+        "Security features": "readelf -d /usr/sbin/telnetd 2>/dev/null | grep -i -E 'bind_now|flags'",
+    }
+
+    recon_output = []
+    for label, cmd in recon_cmds.items():
+        result = subprocess.run(
+            ["docker", "exec", CONTAINER_NAME, "sh", "-c", cmd],
+            capture_output=True,
+            text=True,
+        )
+        output = result.stdout.strip()
+        print(f"\n  [{label}]")
+        print(f"  {output}" if output else "  (no output)")
+        recon_output.append(f"## {label}\n```\n{output}\n```")
+
+    # Write recon to file for agent reference
+    recon_path = TARGET_DIR / "results" / "recon.md"
+    recon_path.parent.mkdir(exist_ok=True)
+    recon_path.write_text(
+        "# Target Recon - telnetd\n\n"
+        + f"Container: {CONTAINER_NAME} (port {PORT})\n\n"
+        + "\n\n".join(recon_output)
+        + "\n"
+    )
+    print(f"\n[+] Recon saved to {recon_path}")
+
+
 def verify():
     """Verify the target is vulnerable."""
     print("\n[*] Running baseline exploit to verify vulnerability...")
@@ -132,5 +179,6 @@ def verify():
 
 if __name__ == "__main__":
     if build_and_start():
+        recon()
         verify()
     print("\n[*] Lab ready. Point your agent at program.md to begin.")

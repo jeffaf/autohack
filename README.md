@@ -1,8 +1,8 @@
 # autohack
 
-Autonomous security research framework. Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
+I gave Claude a crash PoC and 8 hours. Here's what it built.
 
-Give an AI agent a target, a PoC, and a goal. Let it iterate overnight. Wake up to results.
+Autonomous exploit research, inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). Same idea: give an AI agent a target and let it iterate overnight. But instead of training an LLM, it's developing an exploit.
 
 ## How It Works
 
@@ -50,11 +50,6 @@ Create a directory in `targets/` with:
 - `prepare.py` - builds and starts the isolated lab
 - `exploit.py` - starting PoC (agent modifies this)
 - `program.md` - research instructions for the agent
-
-## Safety
-
-- All targets run in Docker containers (fully isolated)
-- Experiment log captures everything for review
 
 ## Credits
 
