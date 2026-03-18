@@ -8,42 +8,20 @@ Give an AI agent a target, a PoC, and a goal. Let it iterate overnight. Wake up 
 
 Same loop as autoresearch, adapted for offensive security:
 
-1. Agent modifies `exploit.py` (the only mutable file)
-2. `harness.py` runs the exploit against an isolated target
-3. Results are measured against defined success criteria
-4. If improved: keep. If not: revert. Repeat.
-
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  program.md │────▶│  AI Agent    │────▶│ exploit.py  │
-│ (research   │     │  (Claude,    │     │ (modified)  │
-│  directives)│     │   Codex)     │     │             │
-└─────────────┘     └──────┬───────┘     └──────┬──────┘
-                           │                     │
-                           │              ┌──────▼──────┐
-                    ┌──────▼───────┐      │  harness.py │
-                    │  Experiment  │◀─────│  (run +     │
-                    │  Log         │      │   measure)  │
-                    └──────────────┘      └──────┬──────┘
-                                                 │
-                                          ┌──────▼──────┐
-                                          │   Docker    │
-                                          │   Target    │
-                                          └─────────────┘
-```
+1. Agent reads `program.md` (research directives)
+2. Agent modifies `exploit.py` (the only mutable file)
+3. Agent runs exploit against isolated Docker target
+4. Agent reads metrics, decides what to try next. Repeat.
 
 ## Structure
 
 ```
 autohack/
-├── harness.py          # Run loop: execute, measure, log (DO NOT MODIFY)
 ├── targets/            # Target-specific labs
 │   └── telnetd/        # CVE-2026-32746 (first target)
 │       ├── prepare.py  # Lab setup (Docker build + start)
 │       ├── exploit.py  # Agent modifies this
-│       ├── program.md  # Research directives for agent
-│       ├── Dockerfile
-│       └── results/    # Experiment logs
+│       └── program.md  # Research directives for agent
 ├── README.md
 └── LICENSE
 ```
@@ -55,11 +33,9 @@ autohack/
 python3 targets/telnetd/prepare.py
 
 # 2. Point your agent at the target
-# In Claude Code / Codex, open this repo and say:
-#   "Read targets/telnetd/program.md and start experimenting"
-
-# 3. Or run the harness directly for manual iteration
-python3 harness.py --target telnetd --iterations 20
+cd /path/to/autohack
+claude  # or codex
+# Then: "Read targets/telnetd/program.md and start experimenting"
 ```
 
 ## Targets
@@ -78,7 +54,6 @@ Create a directory in `targets/` with:
 ## Safety
 
 - All targets run in Docker containers (fully isolated)
-- Harness enforces time budgets per experiment
 - Experiment log captures everything for review
 
 ## Credits
