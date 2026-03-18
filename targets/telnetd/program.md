@@ -26,10 +26,31 @@ GNU InetUtils telnetd has a buffer overflow in the LINEMODE SLC handler (`slc.c`
 
 Modify ONLY `exploit.py` to climb the scoring ladder. Each experiment:
 
-1. You modify `exploit.py`
-2. The harness runs it against the Docker target (port 2324)
-3. Your script outputs metrics as `KEY=VALUE` lines to stdout
-4. If your score improves, the change is kept. Otherwise, reverted.
+1. Modify `exploit.py`
+2. Run it: `python3 targets/telnetd/exploit.py`
+3. Read the KEY=VALUE metrics from stdout
+4. Log the result (see Logging below)
+5. Decide what to try next. Repeat.
+
+## Logging
+
+**This is critical.** Log every experiment to `targets/telnetd/results/experiments.jsonl` (create if missing). Each line is one JSON object:
+
+```json
+{"exp": 1, "ts": "2026-03-18T12:00:00Z", "change": "increased triplets to 70", "metrics": {"CRASH": true, "LEVEL": "crash", "SCORE": 10}, "kept": true, "notes": "baseline confirmed"}
+```
+
+Fields:
+- `exp` - experiment number (incrementing)
+- `ts` - ISO timestamp
+- `change` - what you modified (brief)
+- `metrics` - the KEY=VALUE output from exploit.py
+- `kept` - did you keep this change or revert?
+- `notes` - observations, hypotheses, what you learned
+
+Also update `targets/telnetd/results/status.md` after each significant finding with a human-readable summary of progress, current best score, and next research direction.
+
+If you revert a change, say why in the log. Failed experiments are valuable data.
 
 ## Research Directions
 
@@ -58,9 +79,8 @@ Modify ONLY `exploit.py` to climb the scoring ladder. Each experiment:
 - Target runs at 127.0.0.1:2324 (Docker container)
 - Time budget: 120 seconds per experiment
 - The target auto-restarts between experiments (xinetd spawns fresh telnetd)
-- No network access from the container (--network=none)
-- Output metrics as KEY=VALUE to stdout (harness parses these)
-- Use stderr for debug/notes (harness captures but doesn't parse)
+- Output metrics as KEY=VALUE to stdout
+- Use stderr for debug/notes
 
 ## Useful Information
 
