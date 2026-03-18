@@ -81,7 +81,8 @@ def build_and_start():
             "--name", CONTAINER_NAME,
             "-p", f"{PORT}:23",
             "--restart", "unless-stopped",
-            "--network=none",  # No outbound network access
+            # Container is isolated by Docker's default bridge network
+            # Port 2324 is mapped for local testing only
             f"{CONTAINER_NAME}-img",
         ],
         capture_output=True,
