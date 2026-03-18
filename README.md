@@ -78,7 +78,6 @@ Create a directory in `targets/` with:
 ## Safety
 
 - All targets run in Docker containers (fully isolated)
-- No network access from targets to host
 - Harness enforces time budgets per experiment
 - Experiment log captures everything for review
 
