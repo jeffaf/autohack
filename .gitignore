@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+targets/*/results/
+targets/*/exploit.py.orig
+targets/*/exploit.py.best
+targets/*/Dockerfile
+targets/*/xinetd-telnet.conf
