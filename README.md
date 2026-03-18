@@ -29,14 +29,24 @@ autohack/
 ## Quick Start
 
 ```bash
-# 1. Set up a target lab
+# 1. Clone and set up the lab
+git clone https://github.com/jeffaf/autohack.git
+cd autohack
 python3 targets/telnetd/prepare.py
 
-# 2. Point your agent at the target
-cd /path/to/autohack
-claude  # or codex
-# Then: "Read targets/telnetd/program.md and start experimenting"
+# 2. Run Claude Code in autonomous mode
+claude --print --permission-mode bypassPermissions \
+  "Read targets/telnetd/program.md. This is your research directive. \
+   Begin autonomous experimentation on CVE-2026-32746. \
+   Modify only targets/telnetd/exploit.py. \
+   After each modification, run it and evaluate the KEY=VALUE metrics. \
+   Log every experiment to targets/telnetd/results/experiments.jsonl. \
+   Update targets/telnetd/results/status.md with your progress. \
+   Keep iterating until you reach CONTROLLED_WRITE (score 30) or higher. \
+   If stuck for 10 experiments, pivot your strategy entirely."
 ```
+
+The agent reads program.md, modifies exploit.py, runs it, reads the metrics, logs results, and decides what to try next. You walk away, it iterates. Check `results/status.md` and `results/experiments.jsonl` to see what it tried.
 
 ## Targets
 
