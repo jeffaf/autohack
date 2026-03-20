@@ -1,10 +1,10 @@
 __pycache__/
 *.pyc
-.DS_Store
-targets/*/results/
-targets/*/exploit.py.orig
-targets/*/exploit.py.best
-targets/*/Dockerfile
-targets/*/xinetd-telnet.conf
-__pycache__/
-*.pyc
+results/
+*.log
+
+# Agent-generated artifacts (keep only framework files)
+# The agent creates these during runs - don't track them
+telnetd-32
+telnetd-64
+*.core

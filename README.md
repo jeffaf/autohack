@@ -6,8 +6,8 @@ Autonomous exploit research, inspired by [Karpathy's autoresearch](https://githu
 
 Same loop as autoresearch, adapted for offensive security:
 
-1. Agent reads `program.md` (research directives + tool docs)
-2. Agent modifies exploit scripts (the mutable files)
+1. Agent reads `program.md` (research directives + constraints)
+2. Agent modifies `exploit.py` (the starting PoC)
 3. Agent runs exploit against isolated Docker target
 4. Agent reads metrics, decides what to try next. Repeat.
 
@@ -18,19 +18,14 @@ autohack/
 ├── targets/
 │   ├── telnetd/              # CVE-2026-32746 (64-bit)
 │   │   ├── Dockerfile
-│   │   ├── prepare.py        # Lab setup (Docker build + start)
-│   │   ├── exploit.py        # Agent modifies this
-│   │   ├── program.md        # Research directives
-│   │   └── results/          # Experiment logs
-│   └── telnetd-32bit/        # CVE-2026-32746 (32-bit, primary target)
+│   │   ├── prepare.py        # One-command lab setup
+│   │   ├── exploit.py        # Starting PoC (agent modifies this)
+│   │   └── program.md        # Research directives for agent
+│   └── telnetd-32bit/        # CVE-2026-32746 (32-bit)
 │       ├── Dockerfile        # Compiles inetutils 2.4 from source with -m32
-│       ├── program.md        # Research directives + tool docs
-│       ├── exploit.py        # Base exploit
-│       ├── exploit_defer.py  # Defer trick implementation
-│       ├── exploit_defer2.py # Refined defer trick
-│       ├── HEAP_EXPLOITATION_GUIDE.md  # Technique reference
-│       ├── telnetd-32        # Extracted 32-bit binary for analysis
-│       └── results/          # Experiment logs + status
+│       ├── prepare.py
+│       ├── exploit.py
+│       └── program.md
 ├── README.md
 └── LICENSE
 ```
@@ -38,27 +33,25 @@ autohack/
 ## Quick Start
 
 ```bash
-# 1. Set up the 32-bit target lab
+# 1. Set up a target lab
 cd targets/telnetd-32bit
-docker build -t autohack-telnetd-32bit-img .
-docker run -d --name autohack-telnetd-32bit -p 2325:23 autohack-telnetd-32bit-img
+python3 prepare.py
 
-# 2. Extract binary for static analysis
-docker cp autohack-telnetd-32bit:/usr/sbin/in.telnetd-32 ./telnetd-32
-
-# 3. Point your agent at the target
+# 2. Point your agent at the target
 claude --permission-mode bypassPermissions --print \
   "Read program.md and start experimenting. Target is localhost:2325."
 ```
 
 ## Targets
 
-| Target | CVE | Arch | Best Score | Experiments |
-|--------|-----|------|------------|-------------|
-| telnetd | CVE-2026-32746 | x86-64 | 30 (CONTROLLED_WRITE) | 10 |
-| telnetd-32bit | CVE-2026-32746 | i386 | 40 (FREE_PRIMITIVE) | 82 |
+| Target | CVE | Arch | Description |
+|--------|-----|------|-------------|
+| telnetd | CVE-2026-32746 | x86-64 | Pre-auth BSS buffer overflow in SLC handler |
+| telnetd-32bit | CVE-2026-32746 | i386 | Same vuln, 32-bit build (closer to real deployments) |
 
 ## Scoring
+
+Each target uses a scoring rubric in `program.md`. Default levels:
 
 | Score | Level | Description |
 |-------|-------|-------------|
@@ -68,54 +61,33 @@ claude --permission-mode bypassPermissions --print \
 | 60 | CODE_EXEC | Arbitrary code execution |
 | 100 | SHELL | Interactive shell (unauthenticated) |
 
-## Tools
+## Recommended Tools
 
-The 32-bit target is designed for use with:
+The `program.md` for each target documents tool-specific commands. Recommended stack:
 
 - **[pwntools](https://github.com/Gallopsled/pwntools)** - ELF parsing, ROP chains, shellcraft, remote connections
-- **[pwndbg](https://github.com/pwndbg/pwndbg)** - GDB plugin for heap visualization (bins, top_chunk, vis_heap_chunks)
-- **[radare2](https://github.com/radareorg/radare2)** - Static binary analysis, disassembly, gadget search
-
-See `program.md` in each target directory for tool-specific commands and usage.
-
-## Results: CVE-2026-32746 (32-bit)
-
-Five rounds of autonomous exploitation research:
-
-**Round 1-3 (Score 30):** Mapped BSS layout, confirmed overflow reaches 286 bytes past BSS into heap. Overflow pattern: `(func, 0x00, 0x00)` triplets. Agent concluded defer trick was impossible due to localstat() setting terminit early.
-
-**Round 4 (Score 40):** Agent self-corrected. Found that localstat() is only called from telnetd_run(), not during getterminaltype. Defer trick works: SLC data deferred to heap, deferslc() fires, free(def_slcbuf) executes.
-
-**Round 5 (Score 40):** Full toolkit deployed (pwntools + pwndbg + r2). Memory layout mapped (PIE ~0x565xx000, heap ~0x56bxx000, libc ~0xf7dxx000). Every heap technique attempted. Heap is ~5MB from BSS, making House of Force, tcache poisoning, and all heap metadata attacks physically unreachable.
-
-**Escalation barriers:**
-- `def_slcbuf` is before `slcbuf` in BSS (linker layout) - forward overflow can't corrupt it
-- GOT is also before slcbuf - unreachable
-- Triplet byte constraints prevent constructing valid 32-bit addresses
-- All function pointers in overflow range are startup-only
-
-WatchTowr described the theoretical primitive but also did not publish a working exploit for this build.
+- **[pwndbg](https://github.com/pwndbg/pwndbg)** - GDB plugin for heap visualization
+- **[radare2](https://github.com/radareorg/radare2)** - Static binary analysis and gadget search
 
 ## Adding Targets
 
 Create a directory in `targets/` with:
 - `Dockerfile` - builds the isolated lab environment
-- `prepare.py` (optional) - setup script
-- `exploit.py` - starting PoC (agent modifies this)
+- `prepare.py` - one-command setup (build + start + extract binary)
+- `exploit.py` - starting PoC (the file the agent modifies)
 - `program.md` - research instructions, tool docs, scoring criteria
 
 ## Lessons Learned
 
 1. **Scoring systems are security boundaries.** The agent will find every shortcut. Our first run "achieved SHELL" by logging in with test credentials baked into the Docker lab. Define success precisely.
-2. **Agents self-correct across rounds.** Round 4 proved Round 3's analysis wrong. Give agents fresh context and they can revisit assumptions.
-3. **Systematic beats creative for recon, not exploitation.** The agent excels at binary analysis, protocol implementation, and methodical testing. It struggles with creative leaps that connect unrelated primitives.
-4. **tmux > background SSH.** Long-running Claude Code sessions over SSH die after ~30 minutes. Run in tmux or screen.
+2. **Agents self-correct across rounds.** Give agents fresh context and they can revisit wrong assumptions from previous sessions.
+3. **Systematic beats creative.** Agents excel at recon, binary analysis, and methodical testing. They struggle with the creative leaps that connect unrelated primitives into novel exploitation chains.
+4. **Use tmux/screen.** Long-running agent sessions over SSH die after ~30 minutes. Always run inside a terminal multiplexer.
 
 ## Credits
 
 - Pattern: [Andrej Karpathy](https://github.com/karpathy/autoresearch)
 - CVE-2026-32746: [DREAM Security Research Team](https://dreamgroup.com/vulnerability-advisory-pre-auth-remote-code-execution-via-buffer-overflow-in-telnetd-linemode-slc-handler/)
-- WatchTowr research: [labs.watchtowr.com](https://labs.watchtowr.com/a-32-year-old-bug-walks-into-a-telnet-server-gnu-inetutils-telnetd-cve-2026-32746/)
 
 ## License
 
